@@ -11,8 +11,8 @@ const trackedStack: TrackedDeps[] = [];
 const TAG_COMPUTED = Symbol();
 
 /**
- * Escape hatch to exclude something from dependency tracking
- * @param callback - dependencies will not be tracked within the scope of the callback
+ * Escape hatch to opt-out of dependency tracking within the callback provided
+ * @param callback
  * @returns
  */
 export function untrack<T>(callback: () => T) {
@@ -27,7 +27,7 @@ export function untrack<T>(callback: () => T) {
 
 /**
  * Creates a computed value with automatic dependency tracking
- * @param compute - callback to compute the value
+ * @param compute
  * @returns
  */
 export function computed<T, TState = unknown>(
@@ -81,9 +81,9 @@ export function computed<T, TState = unknown>(
 
 /**
  * Creates a computed value that allows for explicit dependency tracking
- * @param selector - callback selecting dependencies from the state
- * @param compute - callback to compute the value
- * @param eq - callback to compare the previous and next dependencies (defaults to Object.is)
+ * @param selector - select dependencies
+ * @param compute - compute the value
+ * @param eq - compare the previous and next dependencies (defaults to Object.is)
  * @returns 
  */
 export function watch<const S, T, TState = unknown>(
