@@ -69,7 +69,7 @@ const store = createStore(
 ```
 
 ### untrack
-Escape hatch to opt-out of dependency tracking within the scope of the callback provided.
+Escape-hatch to opt-out of dependency tracking within the scope of the callback provided.
 
 Example:
 ```
