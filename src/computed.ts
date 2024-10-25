@@ -8,8 +8,7 @@ type TrackedDeps = {
 let trackingDisabled = false;
 const trackedStack: TrackedDeps[] = [];
 
-const SYM_COMPUTED = Symbol();
-const SYM_ORIGINAL_TARGET = Symbol();
+const TAG_COMPUTED = Symbol();
 
 /**
  * Escape hatch to omit something from dependency tracking
@@ -31,86 +30,53 @@ export function untrack<T>(callback: () => T) {
  * @param callback - function to compute the value
  * @returns
  */
-export function computed<T>(callback: () => T): T {
+export function computed<T, TState = unknown>(
+    callback: (state: TState) => T
+): T {
     let prevTracked: TrackedDeps | undefined;
     let prevValue: T | undefined;
-    let prevState: any;
+    let prevState: TState | undefined;
 
-    const callbackMemoized = (state: any) => {
+    const callbackMemoized = (state: TState) => {
         if (state === prevState) {
             return prevValue;
         }
 
-        // calculate whether any dependencies have changed, and if recalculation is necessary
+        let recompute: boolean = !prevTracked;
+
+        // check dependencies
         if (prevTracked) {
             const keys = prevTracked.keys;
             const values = prevTracked.values;
 
-            let unchanged = true;
             for (let i = 0; i < keys.length; i++) {
-                if (state[keys[i]] !== values[i]) {
-                    unchanged = false;
+                if (state[keys[i] as keyof TState] !== values[i]) {
+                    recompute = true;
                     break;
                 }
             }
+        }
 
-            if (unchanged) {
-                prevState = state;
-                return prevValue as T;
+        // compute the next value
+        if (recompute) {
+            const tracked: TrackedDeps = { keys: [], values: [] };
+            trackedStack.push(tracked);
+
+            try {
+                prevValue = callback(state);
+                prevTracked = tracked;
+            } finally {
+                trackedStack.pop();
             }
         }
 
-        // track next dependencies
-        const tracked: TrackedDeps = { keys: [], values: [] };
-        trackedStack.push(tracked);
-
-        try {
-            // trigger the callback function
-            prevValue = callback();
-
-            prevTracked = tracked;
-            prevState = state;
-            return prevValue;
-        } finally {
-            trackedStack.pop();
-        }
+        prevState = state;
+        return prevValue;
     };
 
-    callbackMemoized[SYM_COMPUTED] = true;
+    callbackMemoized[TAG_COMPUTED] = true;
+    
     return callbackMemoized as unknown as T;
-}
-
-function createProxy<TState extends object>(state: TState): TState {
-    const proxy = new Proxy(state, {
-        get: (target: TState, param: string | symbol) => {
-            let value: unknown = (target as any)[param];
-
-            // return the original object without the proxy
-            if (param === SYM_ORIGINAL_TARGET) {
-                return target;
-            }
-
-            // resolve computed value
-            if (value != null && (value as any)[SYM_COMPUTED]) {
-                const callable = value as (state: TState) => unknown;
-                value = callable(proxy);
-            }
-
-            // track keys that were accessed on the proxy
-            if (!trackingDisabled && trackedStack.length > 0) {
-                const entry: TrackedDeps = trackedStack[trackedStack.length - 1];
-                entry.keys.push(param);
-                entry.values.push(value);
-            }
-
-            return value;
-        },
-    });
-    return proxy;
-}
-
-function getOriginalTarget<TState extends object>(state: TState): TState {
-    return (state as any)[SYM_ORIGINAL_TARGET] ?? state;
 }
 
 /**
@@ -121,33 +87,55 @@ function getOriginalTarget<TState extends object>(state: TState): TState {
 export function computedMiddleware<TState extends object>(
     stateCreator: StateCreator<TState>
 ): StateCreator<TState> {
+    const proxyCache = new WeakMap<TState, TState>();
+
     return (set, get, api) => {
-        const setState = (
-            update: Partial<TState> | ((state: TState) => Partial<TState>),
-            replace?: boolean
-        ) => {
-            const partialState =
-                typeof update === "object" ? update : update(get());
+        const createProxy = (state: TState): TState => {
+            const proxy = new Proxy(state, {
+                get: (target: TState, param: string | symbol) => {
+                    let value: unknown = (target as any)[param];
 
-            // replace the entire state
-            if (replace) {
-                set(createProxy(partialState) as TState, true);
-                return;
+                    // resolve computed value
+                    if (value != null && (value as any)[TAG_COMPUTED]) {
+                        const callable = value as (state: TState) => unknown;
+                        value = callable(proxy);
+                    }
+        
+                    // track keys that were accessed
+                    if (!trackingDisabled && trackedStack.length > 0) {
+                        const entry: TrackedDeps = trackedStack[trackedStack.length - 1];
+                        entry.keys.push(param);
+                        entry.values.push(value);
+                    }
+        
+                    return value;
+                },
+            });
+            return proxy;
+        }
+
+        const getStateProxy = (state: TState): TState => {
+            let stateProxy = proxyCache.get(state);
+            if (!stateProxy) {
+                stateProxy = createProxy(state);
+                proxyCache.set(state, stateProxy);
             }
+            return stateProxy;
+        }
 
-            // get hold of the original object,
-            // otherwise Object.assign resolves all computed values from the proxy
-            const state = getOriginalTarget(get());
-
-            // merge partial state
-            const updated: TState = Object.assign({}, state, partialState);
-
-            set(createProxy(updated), true);
+        const getState = (): TState => {
+            const state = get();
+            return getStateProxy(state);
         };
+        api.getState = getState;
 
-        api.setState = setState as any;
+        const originalSubscribe = api.subscribe.bind(api);
+        api.subscribe = (listener) => originalSubscribe((state, prevState) => {
+            const prevStateProxy = getStateProxy(prevState);
+            const stateProxy = getStateProxy(state);
+            listener(stateProxy, prevStateProxy);
+        });
 
-        const initialState = stateCreator(setState as any, get, api);
-        return createProxy(initialState);
+        return stateCreator(set, getState, api);
     };
 }
