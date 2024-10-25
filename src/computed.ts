@@ -11,8 +11,8 @@ const trackedStack: TrackedDeps[] = [];
 const TAG_COMPUTED = Symbol();
 
 /**
- * Escape hatch to omit something from dependency tracking
- * @param callback - function returning a value that should not be tracked
+ * Escape hatch to exclude something from dependency tracking
+ * @param callback - dependencies will not be tracked within the scope of the callback
  * @returns
  */
 export function untrack<T>(callback: () => T) {
@@ -26,20 +26,20 @@ export function untrack<T>(callback: () => T) {
 }
 
 /**
- * Computed callback that automatically tracks dependencies
- * @param callback - function to compute the value
+ * Creates a computed value with automatic dependency tracking
+ * @param compute - callback to compute the value
  * @returns
  */
 export function computed<T, TState = unknown>(
-    callback: (state: TState) => T
+    compute: (state: TState) => T
 ): T {
     let prevTracked: TrackedDeps | undefined;
     let prevValue: T | undefined;
     let prevState: TState | undefined;
 
-    const callbackMemoized = (state: TState) => {
+    const callbackMemoized = (state: TState): T => {
         if (state === prevState) {
-            return prevValue;
+            return prevValue!;
         }
 
         let recompute: boolean = !prevTracked;
@@ -63,7 +63,7 @@ export function computed<T, TState = unknown>(
             trackedStack.push(tracked);
 
             try {
-                prevValue = callback(state);
+                prevValue = compute(state);
                 prevTracked = tracked;
             } finally {
                 trackedStack.pop();
@@ -71,11 +71,46 @@ export function computed<T, TState = unknown>(
         }
 
         prevState = state;
-        return prevValue;
+        return prevValue!;
     };
 
     callbackMemoized[TAG_COMPUTED] = true;
-    
+
+    return callbackMemoized as unknown as T;
+}
+
+/**
+ * Creates a computed value that allows for explicit dependency tracking
+ * @param selector - callback selecting dependencies from the state
+ * @param compute - callback to compute the value
+ * @param eq - callback to compare the previous and next dependencies (defaults to Object.is)
+ * @returns 
+ */
+export function watch<const S, T, TState = unknown>(
+    selector: (state: TState) => S,
+    compute: (selected: S) => T,
+    eq: (prev: S, next: S) => boolean = Object.is
+): T {
+    let prevDeps: S | undefined;
+    let prevValue: T | undefined;
+    let prevState: TState | undefined;
+
+    const callbackMemoized = (state: TState): T => {
+        if (state === prevState) {
+            return prevValue!;
+        }
+
+        const nextDeps = selector(state);
+        if (!prevDeps || !eq(prevDeps, nextDeps)) {
+            prevValue = compute(nextDeps);
+        }
+
+        prevDeps = nextDeps;
+        return prevValue!;
+    };
+
+    callbackMemoized[TAG_COMPUTED] = true;
+
     return callbackMemoized as unknown as T;
 }
 
@@ -100,19 +135,20 @@ export function computedMiddleware<TState extends object>(
                         const callable = value as (state: TState) => unknown;
                         value = callable(proxy);
                     }
-        
+
                     // track keys that were accessed
                     if (!trackingDisabled && trackedStack.length > 0) {
-                        const entry: TrackedDeps = trackedStack[trackedStack.length - 1];
+                        const entry: TrackedDeps =
+                            trackedStack[trackedStack.length - 1];
                         entry.keys.push(param);
                         entry.values.push(value);
                     }
-        
+
                     return value;
                 },
             });
             return proxy;
-        }
+        };
 
         const getStateProxy = (state: TState): TState => {
             let stateProxy = proxyCache.get(state);
@@ -121,7 +157,7 @@ export function computedMiddleware<TState extends object>(
                 proxyCache.set(state, stateProxy);
             }
             return stateProxy;
-        }
+        };
 
         const getState = (): TState => {
             const state = get();
@@ -130,11 +166,12 @@ export function computedMiddleware<TState extends object>(
         api.getState = getState;
 
         const originalSubscribe = api.subscribe.bind(api);
-        api.subscribe = (listener) => originalSubscribe((state, prevState) => {
-            const prevStateProxy = getStateProxy(prevState);
-            const stateProxy = getStateProxy(state);
-            listener(stateProxy, prevStateProxy);
-        });
+        api.subscribe = (listener) =>
+            originalSubscribe((state, prevState) => {
+                const prevStateProxy = getStateProxy(prevState);
+                const stateProxy = getStateProxy(state);
+                listener(stateProxy, prevStateProxy);
+            });
 
         return stateCreator(set, getState, api);
     };
