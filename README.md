@@ -1,24 +1,24 @@
-# Zustand computed
+# Zustand computed property
 
-Another TypeScript-friendly computed middleware for Zustand. `computed` values can be defined directly in the store. From there, computed values can be accessed just like any another variable, even by other computed values!
+Another TypeScript-friendly computed middleware for Zustand. `computed` properties can be defined directly in the store. From there, computed properties can be accessed just like any other property, even by other computed properties!
 
 How does it work? The quick answer is with [proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) magic. The store state is wrapped in a Proxy object that on property access, checks for `computed` values and resolves them, returning the computed result instead.
 
 ## Installation
 
-`npm install git+https://github.com/mpenney99/zustand-computed.git#master`
+`npm install git+https://github.com/mpenney99/zustand-computed-property.git#master`
 
 ## TypeScript
 
 This library is designed with TypeScript in mind.
 
-The return-type of `computed` is simply the type of the computed value itself (it's actually a function, but for typing purposes we pretend it's not). Because of this, computed values can be defined in the Store the same as any regular property.
+The return-type of `computed` is simply the type of the computed value itself (it's actually a function, but for typing purposes we pretend it's not). Because of this, computed properties can be defined in the Store the same as any regular property.
 
 ## Usage
 
 ```
 import { createStore } from 'zustand';
-import { computedMiddleware, computed } from '@mp99/zustand-computed';
+import { computedMiddleware, computed } from '@mp99/zustand-computed-property';
 
 type StoreState = {
     count: number;
