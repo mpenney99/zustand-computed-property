@@ -1,10 +1,8 @@
 # Zustand computed
 
-Another TypeScript-friendly computed middleware for Zustand. Allows to define `compute`'d values directly in the store, which feels like a very natural way. Computed values can even depend on other computed values!
+Another TypeScript-friendly computed middleware for Zustand. `computed` values can be defined directly in the store. From there, computed values can be accessed just like any another variable, even by other computed values!
 
-How does it work? `compute` actually returns a function with is tagged with a `Symbol`. The whole store state is wrapped in a Proxy that, on property access, checks if the property value has the `Symbol` attached. If it does, the function is invoked and the result of that computation is returned instead.
-
-Note that since it uses Proxies and Symbols, this library might not be compatible with very old browsers.
+How does it work? The quick answer is with [proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) magic. The store state is wrapped in a Proxy object that on property access, checks for `computed` values and resolves them, returning the computed result instead.
 
 ## Installation
 
@@ -12,7 +10,9 @@ Note that since it uses Proxies and Symbols, this library might not be compatibl
 
 ## TypeScript
 
-This library is designed with TypeScript in mind. The return-type of `compute` is aliased to the type of the computed value itself, so defining the type for the store requires no special magic.
+This library is designed with TypeScript in mind.
+
+The return-type of `computed` is simply the type of the computed value itself (it's actually a function, but for typing purposes we pretend it's not). Because of this, computed values can be defined in the Store the same as any regular property.
 
 ## Usage
 
@@ -26,13 +26,12 @@ type StoreState = {
 }
 
 const store = createStore(
-    // important! Don't forget to wrap the store with computedMiddleware
+    // important!! Don't forget to wrap the store with computedMiddleware
     computedMiddleware<StoreState>(
         (set, get) => ({
             count: 3,
 
-            // "count" will be automatically tracked.
-            // It will only be recalculated when the value of "count" changes.
+            // "countSquared" is automatically recomputed whenever "count" changes
             countSquared: computed(() => {
                 const count = get().count;
                 return count * count;
@@ -52,10 +51,10 @@ function MyComponent() {
 ## API
 
 ### computedMiddleware
-Wrap the store in `computedMiddleware` to enable computed/watched properties to be evaluated. It works by wrapping the store state in a Proxy, that evaluates computed properties by calling them.
+Wrap the store in `computedMiddleware` to enable computed/watched properties to be evaluated. This will wrap the store state in a `Proxy` object.
 
 ### computed
-Function accepting a callback to compute a value. It has automatic dependency tracking, so any properties accessed during computation will be tracked, and the callback will be called only when those properties changed.
+Computes a value when its dependencies change. It has automatic dependency tracking, so any properties accessed during computation will be tracked.
 
 Example:
 ```
@@ -98,3 +97,5 @@ const store = createStore(
 );
 ```
 
+## Examples
+See tests for more usage examples
