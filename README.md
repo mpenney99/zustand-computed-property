@@ -1,4 +1,4 @@
-# MP99 / Zustand Computed
+# Zustand computed
 
 Another TypeScript-friendly computed middleware for Zustand. Allows to define `compute`'d values directly in the store, which feels like a very natural way. Computed values can even depend on other computed values!
 
@@ -8,7 +8,7 @@ Note that since it uses Proxies and Symbols, this library might not be compatibl
 
 ## Installation
 
-`npm install @mp99/zustand-computed`
+`npm install git+https://github.com/mpenney99/zustand-computed.git#master`
 
 ## TypeScript
 
@@ -54,7 +54,7 @@ function MyComponent() {
 ### computedMiddleware
 Wrap the store in `computedMiddleware` to enable computed/watched properties to be evaluated. It works by wrapping the store state in a Proxy, that evaluates computed properties by calling them.
 
-### compute
+### computed
 Function accepting a callback to compute a value. It has automatic dependency tracking, so any properties accessed during computation will be tracked, and the callback will be called only when those properties changed.
 
 Example:
@@ -63,7 +63,7 @@ const store = createStore(
     computedMiddleware(
         a: 1,
         // function will only be called when "a" changes.
-        doubled: compute((state) => state.a * state.a)
+        doubled: computed((state) => state.a * state.a)
     )
 );
 ```
@@ -79,13 +79,13 @@ const store = createStore(
         b: 2,
         // function will only be called when "a" changes.
         // When "b" changes, the value will not be recalculated, and the old value will be returned.
-        sum: compute((state) => state.a + untrack(() => state.b))
+        sum: computed((state) => state.a + untrack(() => state.b))
     )
 );
 ```
 
 ### watch
-Non-dependency-tracking counter-part to `compute`. Use it in cases where explicit dependency tracking is preferred, or to define a custom equality function.
+Non-dependency-tracking counter-part to `computed`. Use it in cases where explicit dependency tracking is preferred, or to define a custom equality function.
 
 Example:
 ```
