@@ -1,6 +1,6 @@
 let trackingDisabled = false;
 const trackedStack = [];
-const TAG_COMPUTED = Symbol();
+const TAG_RESOLVABLE = Symbol();
 /**
  * Escape hatch to opt-out of dependency tracking within the callback provided
  * @param callback
@@ -25,7 +25,7 @@ export function computed(compute) {
     let prevTracked;
     let prevValue;
     let prevState;
-    const callbackMemoized = (state) => {
+    const resolvable = (state) => {
         if (state === prevState) {
             return prevValue;
         }
@@ -56,8 +56,8 @@ export function computed(compute) {
         prevState = state;
         return prevValue;
     };
-    callbackMemoized[TAG_COMPUTED] = true;
-    return callbackMemoized;
+    resolvable[TAG_RESOLVABLE] = true;
+    return resolvable;
 }
 /**
  * Creates a computed value that allows for explicit dependency tracking
@@ -70,7 +70,7 @@ export function watch(selector, compute, eq = Object.is) {
     let prevDeps;
     let prevValue;
     let prevState;
-    const callbackMemoized = (state) => {
+    const resolvable = (state) => {
         if (state === prevState) {
             return prevValue;
         }
@@ -81,8 +81,8 @@ export function watch(selector, compute, eq = Object.is) {
         prevDeps = nextDeps;
         return prevValue;
     };
-    callbackMemoized[TAG_COMPUTED] = true;
-    return callbackMemoized;
+    resolvable[TAG_RESOLVABLE] = true;
+    return resolvable;
 }
 /**
  * Computed middleware that allows you to call compute inside the store
@@ -96,10 +96,10 @@ export function computedMiddleware(stateCreator) {
             const proxy = new Proxy(state, {
                 get: (target, param) => {
                     let value = target[param];
-                    // resolve computed value
-                    if (value != null && value[TAG_COMPUTED]) {
-                        const callable = value;
-                        value = callable(proxy);
+                    // resolve value
+                    if (value != null && value[TAG_RESOLVABLE]) {
+                        const resolvable = value;
+                        value = resolvable(proxy);
                     }
                     // track keys that were accessed
                     if (!trackingDisabled && trackedStack.length > 0) {
@@ -112,7 +112,7 @@ export function computedMiddleware(stateCreator) {
             });
             return proxy;
         };
-        const getStateProxy = (state) => {
+        const getCachedStateProxy = (state) => {
             let stateProxy = proxyCache.get(state);
             if (!stateProxy) {
                 stateProxy = createProxy(state);
@@ -120,15 +120,16 @@ export function computedMiddleware(stateCreator) {
             }
             return stateProxy;
         };
+        const originalGetState = api.getState.bind(api);
         const getState = () => {
-            const state = get();
-            return getStateProxy(state);
+            const state = originalGetState();
+            return getCachedStateProxy(state);
         };
         api.getState = getState;
         const originalSubscribe = api.subscribe.bind(api);
         api.subscribe = (listener) => originalSubscribe((state, prevState) => {
-            const prevStateProxy = getStateProxy(prevState);
-            const stateProxy = getStateProxy(state);
+            const prevStateProxy = getCachedStateProxy(prevState);
+            const stateProxy = getCachedStateProxy(state);
             listener(stateProxy, prevStateProxy);
         });
         return stateCreator(set, getState, api);

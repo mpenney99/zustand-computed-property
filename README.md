@@ -1,8 +1,8 @@
 # Zustand computed property
 
-Another TypeScript-friendly computed middleware for Zustand. `computed` properties can be defined directly in the store. From there, computed properties can be accessed just like any other property, even by other computed properties!
+Another TypeScript-friendly computed middleware for Zustand. `computed` properties can be defined directly in the store. Computed properties are then accessible both inside and outside the store just like any other property!
 
-How does it work? The quick answer is with [proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) magic. The store state is wrapped in a Proxy object that on property access, checks for `computed` values and resolves them, returning the computed result instead.
+How does it work? The quick answer is [proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) magic. The store state is wrapped in a Proxy object that on property access, checks for resolvable values and evaluates them, returning the result.
 
 ## Installation
 
@@ -12,7 +12,7 @@ How does it work? The quick answer is with [proxy](https://developer.mozilla.org
 
 This library is designed with TypeScript in mind.
 
-The return-type of `computed` is simply the type of the computed value itself (it's actually a function, but for typing purposes we pretend it's not). Because of this, computed properties can be defined in the Store the same as any regular property.
+The return-type of `computed` and `watch` is simply the type of the resolved value itself (they actually return functions, but we pretend for typing purposes). This makes typing the store easier, as computed properties can be defined just like any regular property.
 
 ## Usage
 
@@ -23,35 +23,43 @@ import { computedMiddleware, computed } from '@mp99/zustand-computed-property';
 type StoreState = {
     count: number;
     countSquared: number;
+    message: string;
+    showAlert: () => void;
 }
 
 const store = createStore(
     // important!! Don't forget to wrap the store with computedMiddleware
     computedMiddleware<StoreState>(
         (set, get) => ({
-            count: 3,
+            count: 2,
+            name: "Foo"
 
-            // "countSquared" is automatically recomputed whenever "count" changes
+            // "countSquared" is recomputed when "count" changes
             countSquared: computed(() => {
                 const count = get().count;
                 return count * count;
-            })
+            }),
+
+            // computed properties can depend on other computed properties
+            message: computed(() => {
+                const count = get().count;
+                const countSquared = get().countSquared;
+                return `${count} squared is ${countSquared}`;
+            }),
+
+            // computed properties can be accessed from anywhere in the store
+            showAlert: () => {
+                window.alert(get().message);
+            }
         })
     )
 );
-
-function MyComponent() {
-    const count = useStore(store, (state) => state.count);
-    const countSquared = useStore(store, (state) => state.countSquared);
-    ...
-}
-
 ```
 
 ## API
 
 ### computedMiddleware
-Wrap the store in `computedMiddleware` to enable computed/watched properties to be evaluated. This will wrap the store state in a `Proxy` object.
+Wrap the store in `computedMiddleware` to enable computed/watched properties to be evaluated. The store state returned will be wrapped in a `Proxy` object.
 
 ### computed
 Computes a value when its dependencies change. It has automatic dependency tracking, so any properties accessed during computation will be tracked.
@@ -61,7 +69,8 @@ Example:
 const store = createStore(
     computedMiddleware(
         a: 1,
-        // function will only be called when "a" changes.
+        b: "hello",
+        // only called when "a" changes.
         doubled: computed((state) => state.a * state.a)
     )
 );
@@ -76,8 +85,7 @@ const store = createStore(
     computedMiddleware(
         a: 1,
         b: 2,
-        // function will only be called when "a" changes.
-        // When "b" changes, the value will not be recalculated, and the old value will be returned.
+        // uses "b" inside the function, but recomputation is only triggered when "a" changes
         sum: computed((state) => state.a + untrack(() => state.b))
     )
 );
@@ -91,7 +99,8 @@ Example:
 const store = createStore(
     computedMiddleware(
         a: 1,
-        // function will only be called when "a" changes
+        b: "hello",
+        // only called when "a" changes
         doubled: watch((state) => state.a, (a) => a * a)
     )
 );

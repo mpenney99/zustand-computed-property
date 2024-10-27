@@ -135,10 +135,10 @@ export function computedMiddleware<TState extends object>(
                 get: (target: TState, param: string | symbol) => {
                     let value: unknown = (target as any)[param];
 
-                    // resolve computed value
+                    // resolve value
                     if (value != null && (value as any)[TAG_RESOLVABLE]) {
-                        const callable = value as Resolvable<unknown, TState>;
-                        value = callable(proxy);
+                        const resolvable = value as Resolvable<unknown, TState>;
+                        value = resolvable(proxy);
                     }
 
                     // track keys that were accessed
@@ -155,7 +155,7 @@ export function computedMiddleware<TState extends object>(
             return proxy;
         };
 
-        const getStateProxy = (state: TState): TState => {
+        const getCachedStateProxy = (state: TState): TState => {
             let stateProxy = proxyCache.get(state);
             if (!stateProxy) {
                 stateProxy = createProxy(state);
@@ -164,17 +164,18 @@ export function computedMiddleware<TState extends object>(
             return stateProxy;
         };
 
+        const originalGetState = api.getState.bind(api);
         const getState = (): TState => {
-            const state = get();
-            return getStateProxy(state);
+            const state = originalGetState();
+            return getCachedStateProxy(state);
         };
         api.getState = getState;
 
         const originalSubscribe = api.subscribe.bind(api);
         api.subscribe = (listener) =>
             originalSubscribe((state, prevState) => {
-                const prevStateProxy = getStateProxy(prevState);
-                const stateProxy = getStateProxy(state);
+                const prevStateProxy = getCachedStateProxy(prevState);
+                const stateProxy = getCachedStateProxy(state);
                 listener(stateProxy, prevStateProxy);
             });
 
