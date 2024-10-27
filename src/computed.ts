@@ -5,10 +5,15 @@ type TrackedDeps = {
     values: unknown[];
 };
 
+interface Resolvable<T, TState> {
+    (state: TState): T;
+    [TAG_RESOLVABLE]: true;
+}
+
 let trackingDisabled = false;
 const trackedStack: TrackedDeps[] = [];
 
-const TAG_COMPUTED = Symbol();
+const TAG_RESOLVABLE = Symbol();
 
 /**
  * Escape hatch to opt-out of dependency tracking within the callback provided
@@ -32,12 +37,12 @@ export function untrack<T>(callback: () => T) {
  */
 export function computed<T, TState = unknown>(
     compute: (state: TState) => T
-): T {
+):  T {
     let prevTracked: TrackedDeps | undefined;
     let prevValue: T | undefined;
     let prevState: TState | undefined;
 
-    const callbackMemoized = (state: TState): T => {
+    const resolvable: Resolvable<T, TState> = (state: TState): T => {
         if (state === prevState) {
             return prevValue!;
         }
@@ -74,9 +79,9 @@ export function computed<T, TState = unknown>(
         return prevValue!;
     };
 
-    callbackMemoized[TAG_COMPUTED] = true;
+    resolvable[TAG_RESOLVABLE] = true;
 
-    return callbackMemoized as unknown as T;
+    return resolvable as unknown as T;
 }
 
 /**
@@ -84,7 +89,7 @@ export function computed<T, TState = unknown>(
  * @param selector - select dependencies
  * @param compute - compute the value
  * @param eq - compare the previous and next dependencies (defaults to Object.is)
- * @returns 
+ * @returns
  */
 export function watch<const S, T, TState = unknown>(
     selector: (state: TState) => S,
@@ -95,7 +100,7 @@ export function watch<const S, T, TState = unknown>(
     let prevValue: T | undefined;
     let prevState: TState | undefined;
 
-    const callbackMemoized = (state: TState): T => {
+    const resolvable: Resolvable<T, TState> = (state: TState): T => {
         if (state === prevState) {
             return prevValue!;
         }
@@ -109,9 +114,9 @@ export function watch<const S, T, TState = unknown>(
         return prevValue!;
     };
 
-    callbackMemoized[TAG_COMPUTED] = true;
+    resolvable[TAG_RESOLVABLE] = true;
 
-    return callbackMemoized as unknown as T;
+    return resolvable as unknown as T;
 }
 
 /**
@@ -131,8 +136,8 @@ export function computedMiddleware<TState extends object>(
                     let value: unknown = (target as any)[param];
 
                     // resolve computed value
-                    if (value != null && (value as any)[TAG_COMPUTED]) {
-                        const callable = value as (state: TState) => unknown;
+                    if (value != null && (value as any)[TAG_RESOLVABLE]) {
+                        const callable = value as Resolvable<unknown, TState>;
                         value = callable(proxy);
                     }
 
