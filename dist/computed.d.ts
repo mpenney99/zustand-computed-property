@@ -1,26 +1,27 @@
 import type { StateCreator } from "zustand";
 /**
- * Escape hatch to opt-out of dependency tracking within the callback provided
+ * Escape hatch to opt-out of dependency tracking
  * @param callback
  * @returns
  */
 export declare function untrack<T>(callback: () => T): T;
 /**
- * Creates a computed value with automatic dependency tracking
- * @param compute
+ * Computes a value with automatic dependency tracking
+ * @param compute - function to compute the value
  * @returns
  */
 export declare function computed<T, TState = unknown>(compute: (state: TState) => T): T;
 /**
- * Creates a computed value that allows for explicit dependency tracking
- * @param selector - select dependencies
- * @param compute - compute the value
- * @param eq - compare the previous and next dependencies (defaults to Object.is)
+ * Computes a value with explicit dependency tracking
+ * @param selector - dependency selector
+ * @param compute - function to compute the value
+ * @param eq - dependency comparator (defaults to Object.is)
  * @returns
  */
 export declare function watch<const S, T, TState = unknown>(selector: (state: TState) => S, compute: (selected: S) => T, eq?: (prev: S, next: S) => boolean): T;
 /**
- * Computed middleware that allows you to call compute inside the store
+ * Enables support for computed/watch properties in the store.
+ * Wraps the store state in a proxy, which resolves values on property access.
  * @param stateCreator state creator function
  * @returns - Computed middleware to pass to Zustand "createStore"
  */

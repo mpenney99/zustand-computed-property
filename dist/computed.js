@@ -2,7 +2,7 @@ let trackingDisabled = false;
 const trackedStack = [];
 const TAG_RESOLVABLE = Symbol();
 /**
- * Escape hatch to opt-out of dependency tracking within the callback provided
+ * Escape hatch to opt-out of dependency tracking
  * @param callback
  * @returns
  */
@@ -17,8 +17,8 @@ export function untrack(callback) {
     }
 }
 /**
- * Creates a computed value with automatic dependency tracking
- * @param compute
+ * Computes a value with automatic dependency tracking
+ * @param compute - function to compute the value
  * @returns
  */
 export function computed(compute) {
@@ -60,10 +60,10 @@ export function computed(compute) {
     return resolvable;
 }
 /**
- * Creates a computed value that allows for explicit dependency tracking
- * @param selector - select dependencies
- * @param compute - compute the value
- * @param eq - compare the previous and next dependencies (defaults to Object.is)
+ * Computes a value with explicit dependency tracking
+ * @param selector - dependency selector
+ * @param compute - function to compute the value
+ * @param eq - dependency comparator (defaults to Object.is)
  * @returns
  */
 export function watch(selector, compute, eq = Object.is) {
@@ -85,7 +85,8 @@ export function watch(selector, compute, eq = Object.is) {
     return resolvable;
 }
 /**
- * Computed middleware that allows you to call compute inside the store
+ * Enables support for computed/watch properties in the store.
+ * Wraps the store state in a proxy, which resolves values on property access.
  * @param stateCreator state creator function
  * @returns - Computed middleware to pass to Zustand "createStore"
  */
@@ -112,7 +113,7 @@ export function computedMiddleware(stateCreator) {
             });
             return proxy;
         };
-        const getCachedStateProxy = (state) => {
+        const getCachedProxy = (state) => {
             let stateProxy = proxyCache.get(state);
             if (!stateProxy) {
                 stateProxy = createProxy(state);
@@ -123,13 +124,13 @@ export function computedMiddleware(stateCreator) {
         const originalGetState = api.getState.bind(api);
         const getState = () => {
             const state = originalGetState();
-            return getCachedStateProxy(state);
+            return getCachedProxy(state);
         };
         api.getState = getState;
         const originalSubscribe = api.subscribe.bind(api);
         api.subscribe = (listener) => originalSubscribe((state, prevState) => {
-            const prevStateProxy = getCachedStateProxy(prevState);
-            const stateProxy = getCachedStateProxy(state);
+            const prevStateProxy = getCachedProxy(prevState);
+            const stateProxy = getCachedProxy(state);
             listener(stateProxy, prevStateProxy);
         });
         return stateCreator(set, getState, api);

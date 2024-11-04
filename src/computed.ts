@@ -16,7 +16,7 @@ const trackedStack: TrackedDeps[] = [];
 const TAG_RESOLVABLE = Symbol();
 
 /**
- * Escape hatch to opt-out of dependency tracking within the callback provided
+ * Escape hatch to opt-out of dependency tracking
  * @param callback
  * @returns
  */
@@ -31,8 +31,8 @@ export function untrack<T>(callback: () => T) {
 }
 
 /**
- * Creates a computed value with automatic dependency tracking
- * @param compute
+ * Computes a value with automatic dependency tracking
+ * @param compute - function to compute the value
  * @returns
  */
 export function computed<T, TState = unknown>(
@@ -85,10 +85,10 @@ export function computed<T, TState = unknown>(
 }
 
 /**
- * Creates a computed value that allows for explicit dependency tracking
- * @param selector - select dependencies
- * @param compute - compute the value
- * @param eq - compare the previous and next dependencies (defaults to Object.is)
+ * Computes a value with explicit dependency tracking
+ * @param selector - dependency selector
+ * @param compute - function to compute the value
+ * @param eq - dependency comparator (defaults to Object.is)
  * @returns
  */
 export function watch<const S, T, TState = unknown>(
@@ -120,7 +120,8 @@ export function watch<const S, T, TState = unknown>(
 }
 
 /**
- * Computed middleware that allows you to call compute inside the store
+ * Enables support for computed/watch properties in the store.
+ * Wraps the store state in a proxy, which resolves values on property access.
  * @param stateCreator state creator function
  * @returns - Computed middleware to pass to Zustand "createStore"
  */
@@ -155,7 +156,7 @@ export function computedMiddleware<TState extends object>(
             return proxy;
         };
 
-        const getCachedStateProxy = (state: TState): TState => {
+        const getCachedProxy = (state: TState): TState => {
             let stateProxy = proxyCache.get(state);
             if (!stateProxy) {
                 stateProxy = createProxy(state);
@@ -167,15 +168,15 @@ export function computedMiddleware<TState extends object>(
         const originalGetState = api.getState.bind(api);
         const getState = (): TState => {
             const state = originalGetState();
-            return getCachedStateProxy(state);
+            return getCachedProxy(state);
         };
         api.getState = getState;
 
         const originalSubscribe = api.subscribe.bind(api);
         api.subscribe = (listener) =>
             originalSubscribe((state, prevState) => {
-                const prevStateProxy = getCachedStateProxy(prevState);
-                const stateProxy = getCachedStateProxy(state);
+                const prevStateProxy = getCachedProxy(prevState);
+                const stateProxy = getCachedProxy(state);
                 listener(stateProxy, prevStateProxy);
             });
 

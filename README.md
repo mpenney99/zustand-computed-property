@@ -2,7 +2,7 @@
 
 Another TypeScript-friendly computed middleware for Zustand. `computed` properties can be defined directly in the store. Computed properties are then accessible both inside and outside the store just like any other property!
 
-How does it work? The quick answer is [proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) magic. The store state is wrapped in a Proxy object that on property access, checks for resolvable values and evaluates them, returning the result.
+How does it work? Internally, computed values are functions, that are tagged with a unique `symbol`. The store state is then wrapped in a [Proxy](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) object which resolves computed properties on property accesss.
 
 ## Installation
 
