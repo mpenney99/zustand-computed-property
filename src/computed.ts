@@ -10,8 +10,7 @@ interface Resolvable<T, TState> {
     [TAG_RESOLVABLE]: true;
 }
 
-let trackingDisabled = false;
-const trackedStack: TrackedDeps[] = [];
+const trackingStack: TrackedDeps[] = [];
 
 const TAG_RESOLVABLE = Symbol();
 
@@ -21,12 +20,11 @@ const TAG_RESOLVABLE = Symbol();
  * @returns
  */
 export function untrack<T>(callback: () => T) {
-    const prevTrackingDisabled = trackingDisabled;
-    trackingDisabled = true;
+    trackingStack.push({ keys: [], values: [] });
     try {
         return callback();
     } finally {
-        trackingDisabled = prevTrackingDisabled;
+        trackingStack.pop();
     }
 }
 
@@ -38,7 +36,7 @@ export function untrack<T>(callback: () => T) {
 export function computed<T, TState = unknown>(
     compute: (state: TState) => T
 ):  T {
-    let prevTracked: TrackedDeps | undefined;
+    let prevTrackedDeps: TrackedDeps | undefined;
     let prevValue: T | undefined;
     let prevState: TState | undefined;
 
@@ -47,12 +45,12 @@ export function computed<T, TState = unknown>(
             return prevValue!;
         }
 
-        let recompute: boolean = !prevTracked;
+        let recompute: boolean = !prevTrackedDeps;
 
         // check dependencies
-        if (prevTracked) {
-            const keys = prevTracked.keys;
-            const values = prevTracked.values;
+        if (prevTrackedDeps) {
+            const keys = prevTrackedDeps.keys;
+            const values = prevTrackedDeps.values;
 
             for (let i = 0; i < keys.length; i++) {
                 if (state[keys[i] as keyof TState] !== values[i]) {
@@ -64,14 +62,14 @@ export function computed<T, TState = unknown>(
 
         // compute the next value
         if (recompute) {
-            const tracked: TrackedDeps = { keys: [], values: [] };
-            trackedStack.push(tracked);
+            const trackedDeps: TrackedDeps = { keys: [], values: [] };
+            trackingStack.push(trackedDeps);
 
             try {
                 prevValue = compute(state);
-                prevTracked = tracked;
+                prevTrackedDeps = trackedDeps;
             } finally {
-                trackedStack.pop();
+                trackingStack.pop();
             }
         }
 
@@ -143,9 +141,8 @@ export function computedMiddleware<TState extends object>(
                     }
 
                     // track keys that were accessed
-                    if (!trackingDisabled && trackedStack.length > 0) {
-                        const entry: TrackedDeps =
-                            trackedStack[trackedStack.length - 1];
+                    if (trackingStack.length > 0) {
+                        const entry: TrackedDeps = trackingStack[trackingStack.length - 1];
                         entry.keys.push(param);
                         entry.values.push(value);
                     }

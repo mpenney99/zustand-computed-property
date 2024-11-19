@@ -1,5 +1,4 @@
-let trackingDisabled = false;
-const trackedStack = [];
+const trackingStack = [];
 const TAG_RESOLVABLE = Symbol();
 /**
  * Escape hatch to opt-out of dependency tracking
@@ -7,13 +6,12 @@ const TAG_RESOLVABLE = Symbol();
  * @returns
  */
 export function untrack(callback) {
-    const prevTrackingDisabled = trackingDisabled;
-    trackingDisabled = true;
+    trackingStack.push({ keys: [], values: [] });
     try {
         return callback();
     }
     finally {
-        trackingDisabled = prevTrackingDisabled;
+        trackingStack.pop();
     }
 }
 /**
@@ -22,18 +20,18 @@ export function untrack(callback) {
  * @returns
  */
 export function computed(compute) {
-    let prevTracked;
+    let prevTrackedDeps;
     let prevValue;
     let prevState;
     const resolvable = (state) => {
         if (state === prevState) {
             return prevValue;
         }
-        let recompute = !prevTracked;
+        let recompute = !prevTrackedDeps;
         // check dependencies
-        if (prevTracked) {
-            const keys = prevTracked.keys;
-            const values = prevTracked.values;
+        if (prevTrackedDeps) {
+            const keys = prevTrackedDeps.keys;
+            const values = prevTrackedDeps.values;
             for (let i = 0; i < keys.length; i++) {
                 if (state[keys[i]] !== values[i]) {
                     recompute = true;
@@ -43,14 +41,14 @@ export function computed(compute) {
         }
         // compute the next value
         if (recompute) {
-            const tracked = { keys: [], values: [] };
-            trackedStack.push(tracked);
+            const trackedDeps = { keys: [], values: [] };
+            trackingStack.push(trackedDeps);
             try {
                 prevValue = compute(state);
-                prevTracked = tracked;
+                prevTrackedDeps = trackedDeps;
             }
             finally {
-                trackedStack.pop();
+                trackingStack.pop();
             }
         }
         prevState = state;
@@ -103,8 +101,8 @@ export function computedMiddleware(stateCreator) {
                         value = resolvable(proxy);
                     }
                     // track keys that were accessed
-                    if (!trackingDisabled && trackedStack.length > 0) {
-                        const entry = trackedStack[trackedStack.length - 1];
+                    if (trackingStack.length > 0) {
+                        const entry = trackingStack[trackingStack.length - 1];
                         entry.keys.push(param);
                         entry.values.push(value);
                     }

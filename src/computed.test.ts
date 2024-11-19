@@ -238,7 +238,7 @@ it("watches a value", () => {
     expect(timesCalled).toBe(2);
 });
 
-it('untrack excludes a dependency from automatic tracking', () => {
+it("untrack doesnt track changes to a dependency", () => {
     type State = {
         a: number;
         b: number;
@@ -266,11 +266,43 @@ it('untrack excludes a dependency from automatic tracking', () => {
     expect(store.getState().sum).toBe(3);
 
     store.setState({ b: 2 });
-    
+
     // B is not tracked, so computation should not be triggered and the previous value is returned
     expect(store.getState().sum).toBe(3);
 
     store.setState({ a: 3 });
 
     expect(store.getState().sum).toBe(5);
+});
+
+it("untrack doesnt track changes to a computed dependency", () => {
+    type State = {
+        a: number;
+        b: number;
+        sum: number;
+        message: string;
+    };
+
+    let timesSumCalled = 0;
+
+    const store = createStore(
+        computedMiddleware<State>(() => ({
+            a: 1,
+            b: 1,
+            sum: computed((state: State) => {
+                timesSumCalled += 1;
+                return state.a + state.b;
+            }),
+            message: computed((state: State) => {
+                const sum = untrack(() => state.sum);
+                return `a: ${state.a}, sum: ${sum}`;
+            }),
+        }))
+    );
+
+    expect(store.getState().message).toBe('a: 1, sum: 2');
+    
+    store.setState({ b: 2 });
+
+    expect(store.getState().message).toBe('a: 1, sum: 2');
 });
